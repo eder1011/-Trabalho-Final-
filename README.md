@@ -7,8 +7,7 @@ O código então cria o diretório de montagem, se necessário, ou esvazia seu c
 com a opção force_remount=True, assegurando uma nova montagem sem conflitos com sessões anteriores.***
 
 
-```
-Python
+```Python
 
 from google.colab import drive
 import os
