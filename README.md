@@ -1,3 +1,6 @@
+***Este pipeline de análise genômica foi desenvolvido e executado como parte do Trabalho de Conclusão do Curso de Bioinformática Aplicada à Genômica Médica - Análises de variantes germinativas e somáticas. O fluxo de trabalho foi implementado no ambiente Google Colab, com integração ao Google Drive, permitindo a execução reprodutível das etapas de processamento de dados de sequenciamento de nova geração (NGS). O pipeline contempla desde a preparação do ambiente computacional e do genoma de referência, passando pelo alinhamento das leituras, controle de qualidade, chamada e filtragem de variantes, até a validação e visualização dos resultados. Essa abordagem possibilitou a padronização das análises, a rastreabilidade dos dados e a obtenção de resultados confiáveis para interpretação biológica no contexto do estudo proposto.***
+
+
 
 ***Este código realiza a integração do Google Drive com o ambiente do Google Colab de forma controlada e segura.
 Inicialmente, são importados os módulos drive, responsável pela montagem do Google Drive, e os, utilizado para verificar diretórios e executar comandos do sistema.
@@ -1517,6 +1520,292 @@ fi
 ✅ clinvar_20200316 (110M)
 🎉 Banco clinvar_20200316 pronto para anotação!
 ```
+
+***Este bloco de código prepara um arquivo VCF para anotação de variantes com o ANNOVAR. Inicialmente, é definida a variável MeuDrive, que aponta para o diretório do projeto no Google Drive, e são exibidas mensagens informativas indicando o início do processo e o arquivo VCF que será analisado. Em seguida, é criado o diretório annotation para armazenar os arquivos resultantes da anotação. O script então utiliza o programa convert2annovar.pl para converter o arquivo VCF no formato vcf4 para o formato AVinput, que é o formato exigido pelo ANNOVAR. Após a conversão, o código verifica se o arquivo variantes.avinput foi gerado com sucesso; se o arquivo existir, o número de linhas convertidas é contado e exibido, confirmando a conclusão correta do processo. Caso o arquivo não seja encontrado, o script informa erro na conversão para o formato ANNOVAR.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "📄 Preparando arquivo VCF para anotação..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Verificar conteúdo do VCF
+echo "🧬 Variantes no arquivo: $MeuDrive/dados/vcf/cap-ngse-b-2019.filtered.vcf"
+
+# Criar diretório de anotação
+mkdir -p "$MeuDrive/dados/annotation"
+
+perl annovar/convert2annovar.pl -format vcf4 "$MeuDrive/dados/vcf/cap-ngse-b-2019.filtered.vcf" \
+    > "$MeuDrive/dados/annotation/variantes.avinput"
+
+# Verificar conversão
+if [ -f "$MeuDrive/dados/annotation/variantes.avinput" ]; then
+    linhas_convertidas=$(wc -l < "$MeuDrive/dados/annotation/variantes.avinput")
+    echo "✅ Conversão concluída!"
+    echo "📄 Arquivo gerado: variantes.avinput"
+    echo "📊 Linhas convertidas: $linhas_convertidas"
+else
+    echo "❌ Erro na conversão para formato ANNOVAR!"
+fi
+```
+
+***Output:***
+
+```
+📄 Preparando arquivo VCF para anotação...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧬 Variantes no arquivo: /content/drive/MyDrive/TRABALHO_FINAL/dados/vcf/cap-ngse-b-2019.filtered.vcf
+✅ Conversão concluída!
+📄 Arquivo gerado: variantes.avinput
+📊 Linhas convertidas: 4658
+
+NOTICE: Finished reading 4684 lines from VCF file
+NOTICE: A total of 4655 locus in VCF file passed QC threshold, representing 4295 SNPs (3057 transitions and 1238 transversions) and 362 indels/substitutions
+NOTICE: Finished writing 4295 SNP genotypes (3057 transitions and 1238 transversions) and 362 indels/substitutions for 1 sample
+WARNING: 1 invalid alternative alleles found in input file
+```
+
+
+***Este trecho de código executa a anotação básica baseada em genes (gene-based annotation) utilizando o ANNOVAR com o assembly hg19. Inicialmente, é definida a variável MeuDrive, que indica o diretório do projeto no Google Drive, e são exibidas mensagens informativas sobre o início do processo. Em seguida, o script verifica se o arquivo de entrada no formato ANNOVAR (variantes.avinput) existe; caso não seja encontrado, a execução é interrompida e o usuário é orientado a executar a etapa de preparação anterior. Após a validação do arquivo de entrada, o código executa a anotação genômica utilizando o comando annotate_variation.pl com a opção -geneanno, que realiza a anotação baseada em genes usando a base RefSeq, associando cada variante aos genes, regiões genômicas e efeitos funcionais correspondentes.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🧬 Executando anotação básica (gene-based)..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ ! -f "$MeuDrive/dados/annotation/variantes.avinput" ]; then
+    echo "❌ Arquivo ANNOVAR input não encontrado!"
+    echo "📝 Execute a célula de preparação anterior."
+    exit 1
+fi
+
+echo "🔄 Executando anotação genômica..."
+
+# Anotação básica com RefSeq
+perl annovar/annotate_variation.pl -geneanno -buildver hg19 \
+    "$MeuDrive/dados/annotation/variantes.avinput" annovar/humandb/
+```
+
+***Output:***
+
+```
+🧬 Executando anotação básica (gene-based)...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 Executando anotação genômica...
+
+NOTICE: Output files are written to /content/drive/MyDrive/TRABALHO_FINAL/dados/annotation/variantes.avinput.variant_function, /content/drive/MyDrive/TRABALHO_FINAL/dados/annotation/variantes.avinput.exonic_variant_function
+NOTICE: Reading gene annotation from annovar/humandb/hg19_refGene.txt ... Done with 78239 transcripts (including 18578 without coding sequence annotation) for 28293 unique genes
+NOTICE: Processing next batch with 4658 unique variants in 4658 input lines
+NOTICE: Reading FASTA sequences from annovar/humandb/hg19_refGeneMrna.fa ... Done with 1369 sequences
+WARNING: A total of 465 sequences will be ignored due to lack of correct ORF annotation
+```
+
+***Este bloco de código realiza a anotação completa de variantes utilizando o script table_annovar.pl do ANNOVAR, integrando múltiplos bancos de dados no assembly hg19. Inicialmente, é definida a variável MeuDrive e são exibidas mensagens indicando o início do processo, que pode demandar alguns minutos dependendo do número de variantes. O comando table_annovar.pl é executado a partir do arquivo de entrada no formato ANNOVAR (variantes.avinput), utilizando como bases de anotação os protocolos refGene (anotação gênica), gnomAD exome (frequência populacional), REVEL (predição de patogenicidade) e ClinVar 20200316 (significado clínico). A opção -operation especifica o tipo de anotação aplicada a cada banco (gênica ou baseada em frequência), -nastring . define o caractere para valores ausentes, -csvout gera o resultado em formato CSV e -remove exclui arquivos intermediários.***
+
+***Após a execução, o script verifica se o arquivo final anotacao_completa.hg19_multianno.csv foi gerado com sucesso. Em caso positivo, são exibidas informações resumidas do resultado, incluindo número de linhas, tamanho do arquivo e uma prévia do cabeçalho com as principais colunas disponíveis. Caso o arquivo não seja encontrado, o código indica erro na anotação e orienta a verificar se os bancos de dados necessários foram corretamente baixados.***
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🔬 Executando anotação completa com table_annovar..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+echo "🔄 Executando anotação (pode levar alguns minutos)..."
+
+# Executar table_annovar
+perl annovar/table_annovar.pl "$MeuDrive/dados/annotation/variantes.avinput" \
+    annovar/humandb/ \
+    -buildver hg19 \
+    -out "$MeuDrive/dados/annotation/anotacao_completa" \
+    -remove \
+    -protocol "refGene,gnomad_exome,revel,clinvar_20200316" \
+    -operation "g,f,f,f" \
+    -nastring . \
+    -csvout
+
+echo ""
+echo "📊 Verificando resultados da anotação completa..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Verificar arquivo de saída
+arquivo_saida="$MeuDrive/dados/annotation/anotacao_completa.hg19_multianno.csv"
+
+if [ -f "$arquivo_saida" ]; then
+    linhas=$(wc -l < "$arquivo_saida")
+    tamanho=$(du -h "$arquivo_saida" | cut -f1)
+
+    echo "✅ Anotação completa concluída!"
+    echo "📄 Arquivo: anotacao_completa.hg19_multianno.csv"
+    echo "📊 Linhas: $linhas (incluindo cabeçalho)"
+    echo "📏 Tamanho: $tamanho"
+
+    echo ""
+    echo "📋 Cabeçalho do arquivo (colunas disponíveis):"
+    head -1 "$arquivo_saida" | tr ',' '\n' | nl | head -10
+
+    total_colunas=$(head -1 "$arquivo_saida" | tr ',' '\n' | wc -l)
+    if [ $total_colunas -gt 10 ]; then
+        echo "    ... e mais $(( $total_colunas - 10 )) colunas"
+    fi
+
+else
+    echo "❌ Erro na anotação completa!"
+    echo "📝 Verifique se os bancos de dados foram baixados corretamente."
+fi
+```
+
+***Output:***
+
+```
+🔬 Executando anotação completa com table_annovar...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 Executando anotação (pode levar alguns minutos)...
+
+📊 Verificando resultados da anotação completa...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Anotação completa concluída!
+📄 Arquivo: anotacao_completa.hg19_multianno.csv
+📊 Linhas: 4659 (incluindo cabeçalho)
+📏 Tamanho: 703K
+```
+
+***Este script em Python realiza a priorização de variantes genéticas a partir do arquivo de anotação completa gerado pelo ANNOVAR. Inicialmente, são importadas as bibliotecas pandas e os, definidos os caminhos de entrada e saída no Google Drive, e o arquivo CSV de anotação é carregado em um DataFrame. Em seguida, o código define critérios de impacto funcional, classificando variantes com base na região genômica (Func.refGene) e no tipo de alteração exônica (ExonicFunc.refGene), separando-as em alta, média ou baixa prioridade. Para evitar erros, valores ausentes são tratados e as colunas relevantes são normalizadas. Uma função personalizada avalia cada variante e atribui sua prioridade, que é adicionada como uma nova coluna ao DataFrame. O script então contabiliza o número total de variantes e a distribuição por prioridade, imprime um resumo dos resultados e exibe detalhes das variantes de maior impacto. As variantes classificadas como alta prioridade são exportadas para um arquivo CSV separado, facilitando análises posteriores e a interpretação biológica dos achados.***
+
+```Python
+
+import pandas as pd
+import os
+
+# Definir caminhos de entrada e saída
+MeuDrive = "/content/drive/MyDrive/TRABALHO_FINAL"
+arquivo = os.path.join(MeuDrive, "dados/annotation/anotacao_completa.hg19_multianno.csv")
+saida_dir = os.path.join(MeuDrive, "dados/annotation")
+
+# Ler arquivo CSV com pandas
+df = pd.read_csv(arquivo)
+
+# Definir listas e condições para filtragem
+funcoes_alta = ['exonic', 'splicing', 'exonic;splicing']
+tipos_alta = ['frameshift deletion', 'frameshift insertion', 'nonsense', 'stopgain', 'stoploss']
+tipos_media = ['missense', 'nonframeshift deletion', 'nonframeshift insertion']
+
+# Normalizar colunas para lower case para busca
+# Tratar NaNs para string vazia para evitar erros
+df['Func.refGene'] = df['Func.refGene'].fillna('').str.lower()
+df['ExonicFunc.refGene'] = df['ExonicFunc.refGene'].fillna('')
+
+# Inicializar coluna prioridade
+def classificar_prioridade(row):
+    funcao = row['Func.refGene']
+    tipo_exonico = row['ExonicFunc.refGene']
+    if any(f in funcao for f in funcoes_alta):
+        if any(t in tipo_exonico for t in tipos_alta):
+            return 'alta'
+        elif any(t in tipo_exonico for t in tipos_media):
+            return 'media'
+    return 'baixa'
+
+# Aplicar função no dataframe
+df['Prioridade'] = df.apply(classificar_prioridade, axis=1)
+
+# Contar as prioridades
+total_variantes = len(df)
+contagem = df['Prioridade'].value_counts().to_dict()
+
+# Listas separadas
+alta_prioridade = df[df['Prioridade'] == 'alta']
+media_prioridade = df[df['Prioridade'] == 'media']
+baixa_prioridade = df[df['Prioridade'] == 'baixa']
+
+# Imprimir resultados
+print(f"📊 Resultados da priorização:")
+print(f"• Total de variantes: {total_variantes}")
+print(f"• 🔴 Alta prioridade: {contagem.get('alta',0)}")
+print(f"• 🟡 Média prioridade: {contagem.get('media',0)}")
+print(f"• 🟢 Baixa prioridade: {contagem.get('baixa',0)}")
+
+# Mostrar variantes de alta prioridade (até 5)
+if not alta_prioridade.empty:
+    print("🔴 VARIANTES DE ALTA PRIORIDADE:")
+    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+    for i, row in alta_prioridade.head(5).iterrows():
+        posicao = f"{row['Chr']}:{row['Start']}"
+        mudanca = f"{row['Ref']}→{row['Alt']}"
+        print(f"🧬 Variante {i+1}:")
+        print(f"   📍 {posicao} ({mudanca})")
+        print(f"   📝 Gene: {row.get('Gene.refGene', 'NA')}")
+        print(f"   🔬 Tipo: {row['ExonicFunc.refGene']}")
+        print()
+    # Salvar variantes alta prioridade
+    alta_prioridade.drop(columns=['Prioridade']).to_csv(
+        os.path.join(saida_dir, 'variantes_alta_prioridade.csv'), index=False)
+    print(f"💾 Variantes de alta prioridade salvas em: variantes_alta_prioridade.csv")
+else:
+    if not media_prioridade.empty:
+        print("🟡 VARIANTES DE MÉDIA PRIORIDADE:")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        for i, row in media_prioridade.head(3).iterrows():
+            posicao = f"{row['Chr']}:{row['Start']}"
+            mudanca = f"{row['Ref']}→{row['Alt']}"
+            print(f"🧬 Variante {i+1}:")
+            print(f"   📍 {posicao} ({mudanca})")
+            print(f"   📝 Gene: {row.get('Gene.refGene', 'NA')}")
+            print(f"   🔬 Tipo: {row['ExonicFunc.refGene']}")
+            print()
+    else:
+        print("ℹ️ Nenhuma variante de alta ou média prioridade identificada.")
+        print("💡 Isso pode indicar:")
+        print("   • Região analisada é conservada")
+        print("   • Variantes são benignas ou comuns")
+        print("   • Filtros podem ser muito restritivos")
+```
+
+***Output:***
+
+```
+📊 Resultados da priorização:
+• Total de variantes: 4658
+• 🔴 Alta prioridade: 11
+• 🟡 Média prioridade: 0
+• 🟢 Baixa prioridade: 4647
+🔴 VARIANTES DE ALTA PRIORIDADE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🧬 Variante 225:
+   📍 chr10:4889403 (C→T)
+   📝 Gene: AKR1E2
+   🔬 Tipo: stopgain
+
+🧬 Variante 815:
+   📍 chr10:22498484 (-→AGA)
+   📝 Gene: EBLN1
+   🔬 Tipo: nonframeshift insertion
+
+🧬 Variante 973:
+   📍 chr10:27687225 (A→G)
+   📝 Gene: PTCHD3
+   🔬 Tipo: stoploss
+
+🧬 Variante 984:
+   📍 chr10:27702256 (-→C)
+   📝 Gene: PTCHD3
+   🔬 Tipo: frameshift insertion
+
+🧬 Variante 1475:
+   📍 chr10:46999591 (-→ATGAGGGAG)
+   📝 Gene: GPRIN2
+   🔬 Tipo: nonframeshift insertion
+
+💾 Variantes de alta prioridade salvas em: variantes_alta_prioridade.csv
+```
+
+
+
+
+
+
+
 
 
 
