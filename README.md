@@ -965,8 +965,558 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 ***A variante é então classificada automaticamente como SNP, inserção ou deleção, com base no comprimento relativo dos alelos REF e ALT. Por fim, a linha completa da variante é exibida, permitindo a correlação direta entre a interpretação didática e o registro bruto do VCF. Essa etapa é fundamental para consolidar o entendimento do formato VCF e preparar o usuário para análises de anotação funcional e interpretação clínica.***
 
 
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "📋 Interpretação detalhada do formato VCF..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ -f "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" ]; then
+
+    echo "📖 Estrutura das colunas VCF:"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "1. CHROM  : Cromossomo"
+    echo "2. POS    : Posição (1-based)"
+    echo "3. ID     : Identificador (rs number)"
+    echo "4. REF    : Alelo de referência"
+    echo "5. ALT    : Alelo alternativo"
+    echo "6. QUAL   : Qualidade da chamada (Phred score)"
+    echo "7. FILTER : Status do filtro (PASS/FAIL)"
+    echo "8. INFO   : Informações adicionais"
+    echo "9. FORMAT : Formato dos dados da amostra"
+    echo "10. SAMPLE: Dados específicos da amostra"
+    echo ""
+
+    # Mostrar linha de header das colunas
+    echo "📄 Cabeçalho das colunas:"
+    grep '^#CHROM' "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf"
+    echo ""
+
+    # Análise de uma variante específica (se existir)
+    if [ $(bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" | wc -l) -gt 0 ]; then
+        echo "🔍 Análise detalhada da primeira variante:"
+        variante=$(bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" | head -1)
+
+        # Separar campos
+        chrom=$(echo "$variante" | cut -f1)
+        pos=$(echo "$variante" | cut -f2)
+        ref=$(echo "$variante" | cut -f4)
+        alt=$(echo "$variante" | cut -f5)
+        qual=$(echo "$variante" | cut -f6)
+        filter=$(echo "$variante" | cut -f7)
+
+        echo "• Localização: $chrom:$pos"
+        echo "• Mudança: $ref → $alt"
+        echo "• Qualidade: $qual"
+        echo "• Status: $filter"
+
+        # Determinar tipo de variante
+        if [ ${#ref} -eq 1 ] && [ ${#alt} -eq 1 ]; then
+            echo "• Tipo: SNP (Single Nucleotide Polymorphism)"
+        elif [ ${#ref} -gt ${#alt} ]; then
+            echo "• Tipo: Deleção ($(( ${#ref} - ${#alt} )) base(s))"
+        elif [ ${#ref} -lt ${#alt} ]; then
+            echo "• Tipo: Inserção ($(( ${#alt} - ${#ref} )) base(s))"
+        fi
+
+        echo ""
+        echo "📊 Linha completa da variante:"
+        echo "$variante"
+
+    else
+        echo "ℹ️ Nenhuma variante disponível para análise detalhada."
+    fi
+
+else
+    echo "❌ Arquivo VCF filtrado não encontrado!"
+    echo "📝 Execute a filtragem primeiro."
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+***Análise estatística de variantes com VCFtools (razão Ts/Tv)***
+
+***Este bloco executa uma análise estatística do arquivo VCF filtrado utilizando o VCFtools, com foco no cálculo da razão entre transições (Ts) e transversões (Tv). O script verifica a existência do VCF de entrada para garantir a correta execução da etapa.***
+
+***O comando --TsTv-summary gera um resumo das substituições nucleotídicas observadas, contabilizando eventos de transição (A↔G, C↔T) e transversão (purina↔pirimidina). A razão Ts/Tv é amplamente utilizada como métrica de controle de qualidade em análises genômicas, pois valores esperados (≈2.0–3.0 para dados humanos germinativos) indicam boa qualidade das chamadas de variantes.***
+
+***Os resultados são salvos em um arquivo de saída e exibidos no terminal para inspeção imediata. Essa etapa fornece uma validação adicional da confiabilidade do conjunto de variantes filtradas antes das fases de anotação funcional e interpretação biológica ou clínica.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "📈 Análise estatística detalhada com vcftools..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ -f "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" ]; then
+
+    echo "🔍 Executando análises estatísticas..."
+
+    # Estatísticas gerais
+    vcftools --vcf "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" --TsTv-summary --out "$MeuDrive/dados/vcf/$SAMPLE"
+    cat  "$MeuDrive/dados/vcf/$SAMPLE.TsTv.summary"
+
+else
+    echo "❌ Arquivo VCF filtrado não encontrado!"
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+***Preparação e validação de arquivos para visualização no IGV***
+
+***Este bloco realiza a verificação final dos arquivos necessários para inspeção visual das variantes no IGV, uma etapa fundamental de validação manual. O script checa a presença do arquivo BAM alinhado e ordenado, seu respectivo índice (.bai) e o arquivo VCF filtrado, garantindo compatibilidade com o IGV.***
+
+***Quando todos os arquivos estão disponíveis, o script identifica automaticamente regiões genômicas contendo variantes de alta qualidade e sugere janelas expandidas ao redor dessas posições, facilitando a navegação e o zoom no IGV para avaliação do suporte por leituras individuais. Essa abordagem reduz o tempo de inspeção manual e direciona o usuário para regiões informativas.***
+
+***Por fim, são fornecidas instruções práticas para carregamento do genoma de referência, arquivos BAM e VCF no IGV, orientando o fluxo de validação visual. Caso algum arquivo esteja ausente, o pipeline interrompe a etapa e orienta a execução prévia das fases necessárias, assegurando a integridade e a reprodutibilidade da análise.***
 
 
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "👁️ Preparação para visualização no IGV..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Verificar arquivos necessários para IGV
+echo "✅ Checklist de arquivos para IGV:"
+
+arquivos_igv=(
+    "$MeuDrive/dados/bam/$SAMPLE.sorted.bam:Arquivo BAM"
+    "$MeuDrive/dados/bam/$SAMPLE.sorted.bam.bai:Índice BAM"
+    "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf:Arquivo VCF"
+)
+
+todos_presentes=true
+for item in "${arquivos_igv[@]}"; do
+    arquivo=$(echo $item | cut -d: -f1)
+    descricao=$(echo $item | cut -d: -f2)
+
+    if [ -f "$arquivo" ]; then
+        echo "✅ $descricao"
+    else
+        echo "❌ $descricao - AUSENTE"
+        todos_presentes=false
+    fi
+done
+
+echo ""
+if [ "$todos_presentes" = true ]; then
+    echo "🎉 Todos os arquivos estão disponíveis para IGV!"
+
+    # Sugerir regiões para visualização
+    if [ -f "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" ]; then
+        variantes_count=$(bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" | wc -l)
+
+        if [ $variantes_count -gt 0 ]; then
+            echo ""
+            echo "📍 Regiões recomendadas para visualização:"
+
+            bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" | head -5 | \
+            while read linha; do
+                chrom=$(echo "$linha" | cut -f1)
+                pos=$(echo "$linha" | cut -f2)
+                ref=$(echo "$linha" | cut -f4)
+                alt=$(echo "$linha" | cut -f5)
+                qual=$(echo "$linha" | cut -f6)
+
+                # Criar região expandida para visualização
+                start=$((pos - 50))
+                end=$((pos + 50))
+
+                echo "• $chrom:$start-$end ($ref→$alt, QUAL=$qual)"
+            done
+        fi
+    fi
+
+    echo ""
+    echo "🔧 Passos no IGV:"
+    echo "1. Genomes → Load Genome from Server → Human hg19"
+    echo "2. File → Load from File → Selecionar BAM"
+    echo "3. File → Load from File → Selecionar VCF"
+    echo "4. Navegar para uma das regiões sugeridas acima"
+    echo "5. Zoom in para ver reads individuais"
+
+else
+    echo "⚠️ Alguns arquivos estão faltando para visualização no IGV."
+    echo "📝 Execute as etapas anteriores do pipeline primeiro."
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+```
+
+***Output:***
+
+```
+👁️ Preparação para visualização no IGV...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Checklist de arquivos para IGV:
+✅ Arquivo BAM
+✅ Índice BAM
+✅ Arquivo VCF
+
+🎉 Todos os arquivos estão disponíveis para IGV!
+
+📍 Regiões recomendadas para visualização:
+• chr10:93553-93653 (C→T, QUAL=1169.64)
+• chr10:93566-93666 (C→T, QUAL=245.64)
+• chr10:93644-93744 (T→C, QUAL=367.64)
+• chr10:93682-93782 (A→G, QUAL=206.64)
+• chr10:93895-93995 (G→A, QUAL=768.64)
+
+🔧 Passos no IGV:
+1. Genomes → Load Genome from Server → Human hg19
+2. File → Load from File → Selecionar BAM
+3. File → Load from File → Selecionar VCF
+4. Navegar para uma das regiões sugeridas acima
+5. Zoom in para ver reads individuais
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+***Verificação de pré-requisitos para anotação de variantes***
+
+***Este bloco realiza uma checagem automatizada dos arquivos VCF necessários para a etapa de anotação de variantes, garantindo que o pipeline seja executado apenas quando os insumos mínimos estiverem disponíveis. É definido o diretório de trabalho e criada uma função reutilizável para verificar a existência dos arquivos, exibindo também o tamanho em disco como validação adicional de integridade.***
+
+***O script verifica a presença tanto do VCF bruto gerado pela chamada de variantes quanto do VCF previamente filtrado, contabilizando quantos arquivos estão disponíveis. Caso ao menos um VCF esteja presente, o pipeline é liberado para a etapa de anotação, priorizando o uso do arquivo filtrado quando disponível.***
+
+***Por fim, são exibidas estatísticas básicas do arquivo selecionado, incluindo o número total de variantes a serem anotadas. Caso nenhum VCF seja encontrado, o script orienta o usuário a executar as etapas anteriores do fluxo de trabalho, assegurando ordem lógica, reprodutibilidade e confiabilidade na anotação funcional e clínica das variantes.***
+
+
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🔍 Verificação de pré-requisitos para anotação..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Função para verificar arquivo
+verificar_arquivo() {
+    local arquivo="$1"
+    local descricao="$2"
+
+    if [ -f "$arquivo" ]; then
+        local tamanho=$(du -h "$arquivo" | cut -f1)
+        echo "✅ $descricao ($tamanho)"
+        return 0
+    else
+        echo "❌ $descricao - AUSENTE"
+        return 1
+    fi
+}
+
+echo "📊 Arquivos VCF necessários:"
+total=0
+presentes=0
+
+# Verificar arquivos VCF das aulas anteriores
+arquivos_vcf=(
+    "$MeuDrive/dados/vcf/cap-ngse-b-2019.filtered.vcf:VCF filtrado"
+    "$MeuDrive/dados/vcf/cap-ngse-b-2019.vcf:VCF de variantes"
+)
+
+for item in "${arquivos_vcf[@]}"; do
+    arquivo=$(echo $item | cut -d: -f1)
+    descricao=$(echo $item | cut -d: -f2)
+
+    if verificar_arquivo "$arquivo" "$descricao"; then
+        ((presentes++))
+    fi
+    ((total++))
+done
+
+echo ""
+echo "📋 RESUMO:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Arquivos presentes: $presentes/$total"
+
+if [ $presentes -gt 0 ]; then
+    echo "🎉 Pelo menos um arquivo VCF disponível!"
+    echo "🚀 Pronto para anotação de variantes."
+
+    # Mostrar estatísticas básicas do melhor arquivo disponível
+    if [ -f "$MeuDrive/dados/vcf/cap-ngse-b-2019.filtered.vcf" ]; then
+        arquivo_trabalho="$MeuDrive/dados/vcf/cap-ngse-b-2019.filtered.vcf"
+        echo "📄 Arquivo principal: cap-ngse-b-2019.filtered.vcf"
+    elif [ -f "$MeuDrive/dados/vcf/cap-ngse-b-2019.vcf" ]; then
+        arquivo_trabalho="$MeuDrive/dados/vcf/cap-ngse-b-2019.variants.vcf"
+        echo "📄 Arquivo principal: cap-ngse-b-2019.vcf"
+    fi
+
+    if [ -n "$arquivo_trabalho" ]; then
+        variantes=$(grep -c '^[^#]' "$arquivo_trabalho")
+        echo "🧬 Variantes a anotar: $variantes"
+    fi
+
+else
+    echo "⚠️ Nenhum arquivo VCF encontrado!"
+    echo "📝 Execute os notebooks das aulas anteriores primeiro:"
+    echo "   1. Preparação do Genoma de Referência"
+    echo "   2. Mapeamento e Alinhamento"
+    echo "   3. Chamada de Variantes"
+    echo "   4. Anotação (esta aula)"
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+***Output:***
+
+```
+🔍 Verificação de pré-requisitos para anotação...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 Arquivos VCF necessários:
+✅ VCF filtrado (877K)
+✅ VCF de variantes (1.3M)
+
+📋 RESUMO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Arquivos presentes: 2/2
+🎉 Pelo menos um arquivo VCF disponível!
+🚀 Pronto para anotação de variantes.
+📄 Arquivo principal: cap-ngse-b-2019.filtered.vcf
+🧬 Variantes a anotar: 4655
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+**Download, instalação e validação do ANNOVAR**
+
+***Este bloco automatiza a instalação do ANNOVAR, uma das ferramentas mais utilizadas para anotação funcional e genética de variantes. O script verifica se o diretório annovar já existe no ambiente, evitando reinstalações desnecessárias e garantindo idempotência do pipeline.***
+
+***O script realiza o download da versão pública mais recente diretamente do site oficial, extrai o conteúdo do arquivo compactado (.tar.gz) e remove o arquivo temporário para otimizar o uso de espaço em disco.***
+
+***Após a instalação, é feita uma verificação de integridade, confirmando a presença do script principal annotate_variation.pl e listando os scripts Perl disponíveis no diretório. Essa checagem garante que o ambiente esteja corretamente preparado para as próximas etapas de anotação de variantes, reduzindo falhas de execução e facilitando o diagnóstico de problemas.***
+
+```bash
+
+echo "📥 Baixando e instalando ANNOVAR..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Verificar se ANNOVAR já está instalado
+if [ -d "annovar" ]; then
+    echo "✅ ANNOVAR já está instalado!"
+    echo "📁 Localização: $(pwd)/annovar"
+else
+    echo "📥 Baixando ANNOVAR..."
+
+    # Download do ANNOVAR (versão pública)
+    wget -q http://www.openbioinformatics.org/annovar/download/0wgxR2rIVP/annovar.latest.tar.gz
+
+    echo "📦 Extraindo ANNOVAR..."
+    tar -xzf annovar.latest.tar.gz
+
+    echo "🧹 Limpando arquivo temporário..."
+    rm annovar.latest.tar.gz
+
+    echo "✅ ANNOVAR instalado com sucesso!"
+fi
+
+# Verificar instalação
+if [ -f "annovar/annotate_variation.pl" ]; then
+    echo ""
+    echo "🔍 Verificando instalação:"
+    echo "• Script principal: $(ls -la annovar/annotate_variation.pl | awk '{print $1, $5, $9}')"
+    echo "• Scripts disponíveis: $(ls annovar/*.pl | wc -l) arquivos"
+
+    echo ""
+    echo "📋 Scripts principais do ANNOVAR:"
+    ls annovar/*.pl | while read script; do
+        nome=$(basename "$script")
+        echo "  • $nome"
+    done
+
+else
+    echo "❌ Erro na instalação do ANNOVAR!"
+    echo "📝 Verifique a conectividade e tente novamente."
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+```
+
+***Output:***
+
+```
+📥 Baixando e instalando ANNOVAR...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📥 Baixando ANNOVAR...
+📦 Extraindo ANNOVAR...
+🧹 Limpando arquivo temporário...
+✅ ANNOVAR instalado com sucesso!
+
+🔍 Verificando instalação:
+• Script principal: -rwxr-xr-x 228730 annovar/annotate_variation.pl
+• Scripts disponíveis: 6 arquivos
+
+📋 Scripts principais do ANNOVAR:
+  • annotate_variation.pl
+  • coding_change.pl
+  • convert2annovar.pl
+  • retrieve_seq_from_fasta.pl
+  • table_annovar.pl
+  • variants_reduction.pl
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+***Download do banco de dados refGene para anotação com ANNOVAR Este bloco realiza o download do banco de dados refGene, utilizado pelo ANNOVAR para anotação baseada em genes, a partir dos servidores oficiais do ANNOVAR. A variável db_name é definida para facilitar a reutilização do código com outros bancos de dados, promovendo modularidade do pipeline.***
+
+***O script annotate_variation.pl é executado com a opção -downdb, indicando que a ação é o download do banco de dados, e -buildver hg38, especificando a versão do genoma de referência humano utilizada na análise. O parâmetro -webfrom annovar define a origem dos dados, enquanto o diretório annovar/humandb é utilizado para armazenar localmente os arquivos baixados.***
+
+***Essa etapa prepara o ambiente para a anotação funcional das variantes, permitindo a associação das posições genômicas às estruturas gênicas conhecidas (genes, éxons, íntrons e regiões regulatórias) de acordo com a versão do genoma selecionada.***
+
+```bash
+
+db_name="refGene"
+
+perl annovar/annotate_variation.pl -buildver hg19 -downdb \
+    -webfrom annovar "$db_name" annovar/humandb
+```
+
+
+***Este bloco Bash automatiza o download e a verificação do banco de dados gnomAD exome para uso com o ANNOVAR no assembly hg19. Inicialmente, é definida a variável MeuDrive, indicando o diretório do projeto no Google Drive, e são exibidas mensagens informativas para acompanhar a execução. Em seguida, o nome do banco de dados (gnomad_exome) é atribuído à variável db_name e o script tenta realizar o download do banco usando o comando annotate_variation.pl do ANNOVAR, suprimindo mensagens de erro padrão. Caso o download seja bem-sucedido, uma mensagem de confirmação é exibida; caso contrário, é informado erro no processo. Após o download, o script verifica se o arquivo correspondente foi criado no diretório annovar/humandb. Se o arquivo existir, seu tamanho em disco é calculado e exibido, confirmando que o banco está pronto para anotação de variantes. Caso o arquivo não seja encontrado, o script indica que o banco não está disponível e alerta para possíveis problemas no download.***
+
+
+```bash
+
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🗄️ Baixando bancos de dados essenciais..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+db_name="gnomad_exome"
+
+if perl annovar/annotate_variation.pl -buildver hg19 -downdb \
+  -webfrom annovar "$db_name" annovar/humandb 2>/dev/null; then
+    echo "✅ $description baixado com sucesso"
+else
+    echo "⚠️ $description - erro no download"
+fi
+
+echo ""
+echo "📊 Resumo do banco baixado:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+
+if [ -f "annovar/humandb/hg19_$db_name.txt" ]; then
+    tamanho=$(du -h "annovar/humandb/hg19_$db_name.txt" | cut -f1)
+    echo "✅ $db_name ($tamanho)"
+    echo "🎉 Banco $db_name pronto para anotação!"
+else
+    echo "❌ $db_name - não disponível"
+    echo "⚠️ Problemas no download"
+fi
+```
+
+***Output:***
+
+```
+🗄️ Baixando bancos de dados essenciais...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅  baixado com sucesso
+
+📊 Resumo do banco baixado:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ gnomad_exome (1.1G)
+🎉 Banco gnomad_exome pronto para anotação!
+```
+
+
+***Este bloco de código Bash realiza o download e a validação do banco de dados REVEL para anotação de variantes com o ANNOVAR, utilizando o assembly hg19. O script inicia definindo o diretório base do projeto no Google Drive e exibindo mensagens informativas para acompanhamento da execução. Em seguida, a variável db_name é configurada com o valor revel, e o comando annotate_variation.pl é executado para baixar o banco diretamente dos servidores do ANNOVAR, com a saída de erro suprimida. Caso o download seja concluído com sucesso, uma mensagem de confirmação é exibida; em caso de falha, o script informa erro no processo. Por fim, o código verifica a existência do arquivo correspondente no diretório annovar/humandb; se presente, calcula e exibe seu tamanho, confirmando que o banco REVEL está pronto para uso na anotação de variantes. Caso contrário, o script alerta que o banco não está disponível, indicando possíveis problemas no download.***
+
+```bash
+
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🗄️ Baixando bancos de dados essenciais..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+db_name="revel"
+
+if perl annovar/annotate_variation.pl -buildver hg19 -downdb \
+  -webfrom annovar "$db_name" annovar/humandb/ 2>/dev/null; then
+    echo "✅ $description baixado com sucesso"
+else
+    echo "⚠️ $description - erro no download"
+fi
+
+echo ""
+echo "📊 Resumo do banco baixado:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+
+if [ -f "annovar/humandb/hg19_$db_name.txt" ]; then
+    tamanho=$(du -h "annovar/humandb/hg19_$db_name.txt" | cut -f1)
+    echo "✅ $db_name ($tamanho)"
+    echo "🎉 Banco $db_name pronto para anotação!"
+else
+    echo "❌ $db_name - não disponível"
+    echo "⚠️ Problemas no download"
+fi
+```
+
+***Output:***
+
+```
+🗄️ Baixando bancos de dados essenciais...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅  baixado com sucesso
+
+📊 Resumo do banco baixado:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ revel (2.4G)
+🎉 Banco revel pronto para anotação!
+```
+
+***Este trecho de código automatiza o download e a verificação do banco de dados ClinVar (versão 20200316) para anotação de variantes com o ANNOVAR, utilizando o assembly hg19. Inicialmente, é definida a variável MeuDrive, que aponta para o diretório do projeto no Google Drive, e são exibidas mensagens informativas para acompanhar o processo. Em seguida, o nome do banco de dados é armazenado na variável db_name, e o script executa o comando annotate_variation.pl para baixar o banco diretamente dos servidores do ANNOVAR, suprimindo mensagens de erro padrão. Caso o download seja realizado com sucesso, uma mensagem de confirmação é exibida; em caso de falha, o script informa erro no processo. Por fim, o código verifica a existência do arquivo correspondente no diretório annovar/humandb; se o arquivo estiver disponível, seu tamanho em disco é calculado e exibido, confirmando que o banco ClinVar está pronto para uso na anotação de variantes. Caso contrário, o script alerta que o banco não está disponível, indicando possíveis problemas no download.***
+
+```bash
+
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🗄️ Baixando bancos de dados essenciais..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+db_name="clinvar_20200316"
+
+if perl annovar/annotate_variation.pl -buildver hg19 -downdb \
+  -webfrom annovar "$db_name" annovar/humandb/ 2>/dev/null; then
+    echo "✅ $description baixado com sucesso"
+else
+    echo "⚠️ $description - erro no download"
+fi
+
+echo ""
+echo "📊 Resumo do banco baixado:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+
+if [ -f "annovar/humandb/hg19_$db_name.txt" ]; then
+    tamanho=$(du -h "annovar/humandb/hg19_$db_name.txt" | cut -f1)
+    echo "✅ $db_name ($tamanho)"
+    echo "🎉 Banco $db_name pronto para anotação!"
+else
+    echo "❌ $db_name - não disponível"
+    echo "⚠️ Problemas no download"
+fi
+```
+
+***Output:***
+
+```
+🗄️ Baixando bancos de dados essenciais...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅  baixado com sucesso
+
+📊 Resumo do banco baixado:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ clinvar_20200316 (110M)
+🎉 Banco clinvar_20200316 pronto para anotação!
+```
 
 
 
