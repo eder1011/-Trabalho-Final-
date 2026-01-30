@@ -891,6 +891,80 @@ chr10  93616  .  C  T  245.64   .  AC=1;AF=0.500;AN=2;BaseQRankSum=3.009;DP=108;
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
+***Filtragem de variantes com base em critérios de qualidade (QUAL)***
+
+***Este bloco aplica uma filtragem inicial ao arquivo VCF com o objetivo de selecionar apenas variantes de alta confiabilidade. Após verificar a existência do VCF de entrada, é utilizado o bcftools filter para reter exclusivamente variantes com valor de qualidade (QUAL) igual ou superior a 100, um critério conservador comumente empregado para reduzir falsos positivos.***
+
+***Em seguida, o script compara quantitativamente o número de variantes antes e após a filtragem, permitindo avaliar o impacto do filtro aplicado e o percentual de variantes mantidas. Essa etapa é essencial para verificar se os critérios de qualidade estão excessivamente restritivos ou adequados ao conjunto de dados analisado.***
+
+***Por fim, caso variantes sejam retidas, são exibidos exemplos das primeiras variantes filtradas, facilitando a inspeção manual. Se nenhuma variante atender aos critérios, o pipeline fornece sugestões técnicas para ajuste dos parâmetros, como redução do limiar de qualidade ou verificação da cobertura de sequenciamento. Essa abordagem garante transparência, rastreabilidade e controle de qualidade na seleção de variantes para análises subsequentes.***
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "🔍 Filtragem de variantes de alta qualidade..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ -f "$MeuDrive/dados/vcf/$SAMPLE.vcf" ]; then
+
+    echo "📋 Aplicando filtros de qualidade:"
+    echo "• QUAL ≥ 100 (qualidade da chamada)"
+    echo ""
+
+    # Aplicar filtros de qualidade
+    bcftools filter -i 'QUAL>=100' "$MeuDrive/dados/vcf/$SAMPLE.vcf" > "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf"
+
+    echo "✅ Filtragem concluída!"
+    echo ""
+
+    # Estatísticas antes e depois da filtragem
+    echo "📊 Comparação antes/depois da filtragem:"
+
+    variantes_total=$(bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.vcf" | wc -l)
+    variantes_filtradas=$(bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" | wc -l)
+
+    echo "• Variantes antes da filtragem: $variantes_total"
+    echo "• Variantes após filtragem: $variantes_filtradas"
+
+    if [ $variantes_total -gt 0 ]; then
+        percentual=$(awk "BEGIN {printf \"%.1f\", ($variantes_filtradas/$variantes_total)*100}")
+        echo "• Percentual mantido: $percentual%"
+    fi
+
+    # Mostrar variantes filtradas se existirem
+    if [ $variantes_filtradas -gt 0 ]; then
+        echo ""
+        echo "🎯 Variantes de alta qualidade identificadas:"
+        bcftools view -H "$MeuDrive/dados/vcf/$SAMPLE.filtered.vcf" | head -10 | \
+        cut -f1-8 | column -t
+    else
+        echo ""
+        echo "⚠️ Nenhuma variante passou pelos filtros de qualidade."
+        echo "💡 Sugestões:"
+        echo "   • Reduzir threshold de qualidade (QUAL < 100)"
+        echo "   • Verificar cobertura da região"
+    fi
+
+else
+    echo "❌ Arquivo VCF não encontrado!"
+    echo "📝 Execute a chamada de variantes primeiro."
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+```
+
+***Interpretação do formato VCF e análise detalhada de variantes***
+
+***Este bloco tem como objetivo explicar a estrutura do formato VCF (Variant Call Format) e exemplificar a interpretação de uma variante filtrada de alta qualidade. O script valida a existência do arquivo VCF filtrado e apresenta a descrição funcional de cada coluna padrão do VCF, facilitando a compreensão dos campos utilizados ao longo do pipeline.***
+
+***Em seguida, é exibido o cabeçalho das colunas (#CHROM), garantindo a conferência do layout do arquivo e da ordem dos campos. Caso o VCF contenha variantes, o script seleciona a primeira entrada e realiza uma decomposição dos principais atributos, incluindo localização genômica, alelos de referência e alternativo, qualidade da chamada e status do filtro.***
+
+***A variante é então classificada automaticamente como SNP, inserção ou deleção, com base no comprimento relativo dos alelos REF e ALT. Por fim, a linha completa da variante é exibida, permitindo a correlação direta entre a interpretação didática e o registro bruto do VCF. Essa etapa é fundamental para consolidar o entendimento do formato VCF e preparar o usuário para análises de anotação funcional e interpretação clínica.***
+
+
 
 
 
