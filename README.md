@@ -464,8 +464,8 @@ echo ""
 
 echo "📄 Primeiros 10 alinhamentos:"
 samtools view "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" | head -10
-
 ```
+
 
 ***Converte o arquivo BAM ordenado para o formato BED utilizando o BEDTools, representando os alinhamentos como intervalos genômicos. Em seguida, realiza a fusão (merge) de regiões sobrepostas e a ordenação dos intervalos resultantes.
 Essa etapa é utilizada para resumir e organizar as regiões genômicas cobertas pelas leituras, facilitando análises baseadas em intervalos, como avaliação de cobertura e interseção com regiões alvo.***
@@ -480,5 +480,422 @@ bedtools sort -i "$MeuDrive/dados/bam/$SAMPLE.merged.bed" > "$MeuDrive/dados/bam
 ```
 
 ***Exibe as dez primeiras linhas do arquivo BED ordenado, permitindo verificar os intervalos genômicos derivados dos alinhamentos (cromossomo, início e fim). Essa inspeção confirma que a conversão do BAM para BED e a organização das regiões foram realizadas corretamente.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+head -10 "$MeuDrive/dados/bam/$SAMPLE.sorted.bed"
+```
+
+***Output:***
+```
+chr10	63440	63621
+chr10	77630	77788
+chr10	80033	80214
+chr10	87016	87167
+chr10	87514	87664
+chr10	87760	87911
+chr10	90578	90692
+chr10	91421	91597
+chr10	92745	95586
+chr10	95679	95830
+```
+
+***Calcula a cobertura média de leitura para cada região genômica definida no arquivo BED, utilizando o arquivo BAM ordenado como referência. A opção -mean retorna a profundidade média de cobertura por intervalo, gerando um arquivo BED com informações quantitativas de cobertura, útil para avaliação da qualidade do sequenciamento e uniformidade da cobertura.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+bedtools coverage \
+    -a "$MeuDrive/dados/bam/$SAMPLE.sorted.bed" \
+    -b "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" \
+    -mean > "$MeuDrive/dados/bam/$SAMPLE.coverage.bed"
+
+```
+
+***Este script realiza uma análise descritiva da cobertura de sequenciamento, exibindo exemplos iniciais das regiões analisadas e calculando estatísticas básicas, como número total de regiões, cobertura média, máxima e mínima. Esses indicadores são fundamentais para avaliar a qualidade, profundidade e uniformidade da cobertura, auxiliando na interpretação dos resultados e na validação do pipeline de análise.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "📊 Análise detalhada da cobertura:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+echo "🔍 Primeiras 10 regiões com cobertura:"
+head -10 "$MeuDrive/dados/bam/$SAMPLE.coverage.bed"
+
+echo ""
+echo "📈 Estatísticas gerais de cobertura:"
+
+total_regioes=$(wc -l < "$MeuDrive/dados/bam/$SAMPLE.coverage.bed")
+cobertura_media=$(awk '{sum += $4; count++} END {printf "%.2f", sum/count}' "$MeuDrive/dados/bam/$SAMPLE.coverage.bed")
+cobertura_maxima=$(awk '{if($4 > max) max = $4} END {printf "%.2f", max}' "$MeuDrive/dados/bam/$SAMPLE.coverage.bed")
+cobertura_minima=$(awk 'NR==1{min=$4} {if($4 < min) min = $4} END {printf "%.2f", min}' "$MeuDrive/dados/bam/$SAMPLE.coverage.bed")
+
+echo "• Total de regiões: $(printf "%'d" $total_regioes)"
+echo "• Cobertura média: ${cobertura_media}x"
+echo "• Cobertura máxima: ${cobertura_maxima}x"
+echo "• Cobertura mínima: ${cobertura_minima}x"
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+***Output:***
+
+```
+📊 Análise detalhada da cobertura:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔍 Primeiras 10 regiões com cobertura:
+chr10	63440	63621	1.6574585
+chr10	77630	77788	1.9113925
+chr10	80033	80214	1.6685083
+chr10	87016	87167	1.0000000
+chr10	87514	87664	1.0000000
+chr10	87760	87911	1.0000000
+chr10	90578	90692	2.0000000
+chr10	91421	91597	1.2954545
+chr10	92745	95586	55.0165443
+chr10	95679	95830	1.0000000
+
+📈 Estatísticas gerais de cobertura:
+• Total de regiões: 43,861
+• Cobertura média: 6.48x
+• Cobertura máxima: 2975.75x
+• Cobertura mínima: 1.00x
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```
+
+***Filtra as regiões genômicas com cobertura média maior ou igual a 20× a partir do arquivo de cobertura, utilizando awk. O resultado é um novo arquivo BED contendo apenas regiões com profundidade considerada adequada para análises confiáveis, como detecção de variantes e avaliação de qualidade do sequenciamento.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "🎯 Filtrando regiões com cobertura ≥ 20x..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+awk -F "\t" '$4 >= 20 {print $0}' "$MeuDrive/dados/bam/$SAMPLE.coverage.bed" > "$MeuDrive/dados/bam/$SAMPLE.coverage.20x.bed"
+
+
+echo ""
+echo "🔍 Primeiras 10 regiões com cobertura ≥ 20x:"
+head -10 "$MeuDrive/dados/bam/$SAMPLE.coverage.20x.bed"
+
+```
+
+***Output:***
+
+```
+🎯 Filtrando regiões com cobertura ≥ 20x...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 Primeiras 10 regiões com cobertura ≥ 20x:
+chr10	92745	95586	55.0165443
+chr10	130495	131010	22.6174755
+chr10	266976	267603	22.5087719
+chr10	284964	286270	21.8047466
+chr10	287667	288438	29.6900139
+chr10	292521	293649	26.4592190
+chr10	294053	295084	26.2007751
+chr10	297959	298591	21.9367085
+chr10	322964	323723	32.0830040
+chr10	326870	327593	42.0497932
+
+```
+
+***Verificação automática de pré-requisitos do pipeline***
+
+***Este bloco executa um script para validar a presença de todos os arquivos necessários antes da etapa de chamada de variantes. É definido o diretório de trabalho no Google Drive, garantindo consistência nos caminhos utilizados. Em seguida, é criada uma função para verificar a existência de arquivos críticos, retornando também o tamanho de cada arquivo como forma de validação adicional.***
+
+***O script checa os principais insumos do pipeline, incluindo o genoma de referência (FASTA, índice .fai e dicionário .dict) e os dados de sequenciamento alinhados (arquivo BAM ordenado e seu índice .bai). Ao final, é apresentado um resumo quantitativo dos arquivos encontrados. Caso todos os pré-requisitos estejam presentes, o pipeline é liberado para execução; caso contrário, o usuário é orientado a executar as etapas anteriores de preparação e alinhamento, garantindo integridade e reprodutibilidade da análise.***
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+
+echo "🔍 Verificação completa de pré-requisitos..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# Função para verificar arquivo
+verificar_arquivo() {
+    local arquivo="$1"
+    local descricao="$2"
+
+    if [ -f "$arquivo" ]; then
+        local tamanho=$(du -h "$arquivo" | cut -f1)
+        echo "✅ $descricao ($tamanho)"
+        return 0
+    else
+        echo "❌ $descricao - AUSENTE"
+        return 1
+    fi
+}
+
+echo "📂 1. Genoma de Referência:"
+total=0
+presentes=0
+
+if verificar_arquivo "$MeuDrive/referencia/hg19/hg19.fasta" "Genoma FASTA"; then ((presentes++)); fi; ((total++))
+if verificar_arquivo "$MeuDrive/referencia/hg19/hg19.fasta.fai" "Índice samtools"; then ((presentes++)); fi; ((total++))
+if verificar_arquivo "$MeuDrive/referencia/hg19/hg19.dict" "Dicionário Picard"; then ((presentes++)); fi; ((total++))
+
+echo ""
+echo "📊 2. Dados de Sequenciamento:"
+if verificar_arquivo "$MeuDrive/dados/bam/cap-ngse-b-2019.sorted.bam" "BAM ordenado"; then ((presentes++)); fi; ((total++))
+if verificar_arquivo "$MeuDrive/dados/bam/cap-ngse-b-2019.sorted.bam.bai" "Índice BAM"; then ((presentes++)); fi; ((total++))
+
+echo ""
+echo "📋 RESUMO:"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Arquivos presentes: $presentes/$total"
+
+if [ $presentes -eq $total ]; then
+    echo "🎉 TODOS OS PRÉ-REQUISITOS ATENDIDOS!"
+    echo "🚀 Pronto para chamada de variantes."
+else
+    echo "⚠️ Alguns arquivos estão faltando."
+    echo "📝 Execute os notebooks das aulas anteriores primeiro."
+    echo ""
+    echo "🔗 Ordem recomendada:"
+    echo "1. Preparação do Genoma de Referência"
+    echo "2. Mapeamento e Alinhamento"
+    echo "3. Chamada de Variantes (esta aula)"
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+```
+
+***Output:***
+
+```
+
+🔍 Verificação completa de pré-requisitos...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📂 1. Genoma de Referência:
+✅ Genoma FASTA (132M)
+✅ Índice samtools (512)
+✅ Dicionário Picard (512)
+
+📊 2. Dados de Sequenciamento:
+✅ BAM ordenado (112M)
+✅ Índice BAM (185K)
+
+📋 RESUMO:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ Arquivos presentes: 5/5
+🎉 TODOS OS PRÉ-REQUISITOS ATENDIDOS!
+🚀 Pronto para chamada de variantes.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+```
+
+***Análise exploratória e controle de qualidade de arquivos BAM***
+
+***Este bloco executa uma análise preliminar dos dados de sequenciamento alinhados antes da chamada de variantes. São definidos o diretório de trabalho e o identificador da amostra, garantindo padronização dos nomes de arquivos. O script verifica a existência do arquivo BAM ordenado e, caso esteja presente, exibe seu tamanho em disco como uma checagem inicial de integridade.***
+
+***Em seguida, o comando samtools flagstat é utilizado para gerar estatísticas básicas do alinhamento, incluindo número total de leituras, leituras mapeadas e taxa de alinhamento. Posteriormente, samtools depth calcula a profundidade de cobertura por posição genômica, permitindo visualizar exemplos iniciais de cobertura e estimar a cobertura média do experimento por meio de um cálculo agregado em awk.***
+
+***Caso o arquivo BAM não seja encontrado, o script interrompe a análise e orienta o usuário a executar previamente a etapa de mapeamento. Essa verificação assegura a qualidade mínima dos dados e reduz erros nas etapas subsequentes.***
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "📊 Análise prévia dos dados BAM..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ -f "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" ]; then
+    echo "📄 Arquivo BAM: $SAMPLE.sorted.bam"
+    echo "📏 Tamanho: $(du -h "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" | cut -f1)"
+
+    echo ""
+    echo "📈 Estatísticas básicas do BAM:"
+    samtools flagstat "$MeuDrive/dados/bam/$SAMPLE.sorted.bam"
+
+    echo ""
+    echo "🎯 Região de cobertura (primeiras 5 posições):"
+    samtools depth "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" | head -5
+
+    echo ""
+    echo "📊 Cobertura média aproximada:"
+    samtools depth "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" | \
+    awk '{sum+=$3; count++} END {printf "%.1fx (baseado em %d posições)\n", sum/count, count}'
+
+else
+    echo "❌ Arquivo BAM não encontrado!"
+    echo "📝 Execute o notebook de mapeamento primeiro."
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+
+***Chamada de variantes germinativas com GATK HaplotypeCaller***
+
+***Este bloco executa a etapa de chamada de variantes utilizando o GATK HaplotypeCaller, a ferramenta padrão para detecção de SNPs e indels em dados de sequenciamento de nova geração. É criado o diretório de saída para arquivos VCF, garantindo organização e evitando erros por ausência de pasta.***
+
+***O HaplotypeCaller é executado a partir do genoma de referência no formato FASTA e de um arquivo BAM previamente alinhado e ordenado. O parâmetro --min-base-quality-score 20 filtra bases de baixa qualidade, aumentando a confiabilidade das variantes detectadas. Já o parâmetro --standard-min-confidence-threshold-for-calling 30.0 define um limiar mínimo de confiança (Phred-scaled) para que uma variante seja efetivamente chamada.***
+
+***Como resultado, é gerado um arquivo VCF contendo as variantes germinativas identificadas na amostra, pronto para etapas posteriores de filtragem, anotação e interpretação.***
+
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+mkdir -p $MeuDrive/dados/vcf
+
+
+./gatk-4.1.8.1/gatk HaplotypeCaller \
+    -R "$MeuDrive/referencia/hg19/hg19.fasta" \
+    -I "$MeuDrive/dados/bam/$SAMPLE.sorted.bam" \
+    -O "$MeuDrive/dados/vcf/$SAMPLE.vcf" \
+    --min-base-quality-score 20 \
+    --standard-min-confidence-threshold-for-calling 30.0
+```
+
+***Inspeção e validação inicial do arquivo VCF***
+
+***Este bloco realiza uma análise exploratória do arquivo VCF gerado na etapa de chamada de variantes, com o objetivo de validar sua integridade antes das etapas de filtragem e anotação. O script verifica a existência do arquivo VCF no diretório de saída e, caso esteja presente, exibe informações básicas como caminho, tamanho em disco e número total de linhas.***
+
+***Em seguida, é avaliada a estrutura interna do VCF por meio da contagem de linhas de cabeçalho (linhas iniciadas por #) e de registros de variantes propriamente ditos. Essa verificação assegura que o arquivo segue o padrão VCF e contém chamadas de variantes válidas. Por fim, são exibidas as primeiras linhas do cabeçalho, permitindo a conferência manual de metadados críticos, como versão do VCF, parâmetros utilizados e definições de campos INFO e FORMAT.***
+
+***Caso o arquivo não seja encontrado, o pipeline interrompe a análise e orienta o usuário a executar previamente a etapa de chamada de variantes, garantindo a correta sequência do fluxo de trabalho.***
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "📄 Análise do arquivo VCF gerado..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ -f "$MeuDrive/dados/vcf/$SAMPLE.vcf" ]; then
+    echo "📊 Informações básicas do arquivo:"
+    echo "• Localização: $MeuDrive/dados/vcf/$SAMPLE.vcf"
+    echo "• Tamanho: $(du -h "$MeuDrive/dados/vcf/$SAMPLE.vcf" | cut -f1)"
+    echo "• Total de linhas: $(wc -l < "$MeuDrive/dados/vcf/$SAMPLE.vcf")"
+
+    echo ""
+    echo "📋 Estrutura do VCF:"
+    linhas_header=$(grep -c '^#' "$MeuDrive/dados/vcf/$SAMPLE.vcf")
+    linhas_dados=$(grep -c '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf")
+    echo "• Linhas de cabeçalho: $linhas_header"
+    echo "• Linhas de dados: $linhas_dados"
+
+    echo ""
+    echo "🔍 Cabeçalho do VCF (primeiras 20 linhas):"
+    head -20 "$MeuDrive/dados/vcf/$SAMPLE.vcf"
+
+else
+    echo "❌ Arquivo VCF não encontrado!"
+    echo "📝 Execute a célula de chamada de variantes primeiro."
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+```
+
+***Estatísticas descritivas e caracterização das variantes chamadas***
+
+***Este bloco executa uma análise quantitativa e qualitativa do arquivo VCF gerado, com o objetivo de caracterizar o conjunto de variantes antes das etapas de filtragem avançada e interpretação. O script verifica a existência do VCF e contabiliza o número total de variantes chamadas (linhas não comentadas).***
+
+***Em seguida, as variantes são classificadas de forma simplificada em SNPs e INDELs, com base no comprimento dos alelos de referência e alternativo. Também é avaliada a distribuição das variantes em diferentes limiares de qualidade (campo QUAL), permitindo uma estimativa rápida da confiabilidade das chamadas.***
+
+***Por fim, são exibidos exemplos das primeiras variantes identificadas, incluindo os principais campos do VCF (cromossomo, posição, alelos, qualidade e informações), facilitando a inspeção manual e a validação do formato. Caso nenhuma variante seja detectada, o script fornece possíveis explicações técnicas, auxiliando no diagnóstico de problemas experimentais ou de parametrização.***
+
+
+```bash
+MeuDrive="/content/drive/MyDrive/TRABALHO_FINAL"
+SAMPLE="cap-ngse-b-2019"
+
+echo "📊 Estatísticas detalhadas das variantes..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+if [ -f "$MeuDrive/dados/vcf/$SAMPLE.vcf" ]; then
+
+    # Contagem geral
+    echo "🔢 Contagens gerais:"
+    variantes=$(grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | wc -l)
+    echo "• Variantes chamadas: $(printf "%'d" $variantes)"
+
+    if [ $variantes -gt 0 ]; then
+        echo ""
+        echo "🧬 Análise dos tipos de variantes:"
+
+        # Identificar SNPs e INDELs
+        snps=$(grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | \
+               awk 'length($4)==1 && length($5)==1' | wc -l)
+        indels=$(grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | \
+                awk 'length($4)!=length($5)' | wc -l)
+
+        echo "• SNPs (Single Nucleotide Polymorphisms): $snps"
+        echo "• INDELs (Inserções/Deleções): $indels"
+
+        # Distribuição por qualidade
+        echo ""
+        echo "📈 Distribuição por qualidade (QUAL):"
+        echo "• QUAL ≥ 30: $(grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | awk '$6 >= 30' | wc -l)"
+        echo "• QUAL ≥ 50: $(grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | awk '$6 >= 50' | wc -l)"
+        echo "• QUAL ≥ 100: $(grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | awk '$6 >= 100' | wc -l)"
+
+        echo ""
+        echo "🎯 Primeiras 5 variantes identificadas:"
+        grep '^[^#]' "$MeuDrive/dados/vcf/$SAMPLE.vcf" | head -5 | \
+        cut -f1-8 | column -t
+
+    else
+        echo "⚠️ Nenhuma variante identificada."
+        echo "💡 Isso pode indicar:"
+        echo "   • Baixa cobertura na região"
+        echo "   • Parâmetros muito restritivos"
+        echo "   • Região conservada no cromossomo 8"
+    fi
+
+else
+    echo "❌ Arquivo VCF não encontrado!"
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+```
+
+***Output:***
+
+```
+📊 Estatísticas detalhadas das variantes...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔢 Contagens gerais:
+• Variantes chamadas: 6,965
+
+🧬 Análise dos tipos de variantes:
+• SNPs (Single Nucleotide Polymorphisms): 6412
+• INDELs (Inserções/Deleções): 553
+
+📈 Distribuição por qualidade (QUAL):
+• QUAL ≥ 30: 6965
+• QUAL ≥ 50: 5731
+• QUAL ≥ 100: 4655
+
+🎯 Primeiras 5 variantes identificadas:
+chr10  80119  .  C  G  78.32    .  AC=2;AF=1.00;AN=2;DP=2;ExcessHet=3.0103;FS=0.000;MLEAC=1;MLEAF=0.500;MQ=60.00;QD=25.36;SOR=0.693
+chr10  80124  .  A  G  78.32    .  AC=2;AF=1.00;AN=2;DP=2;ExcessHet=3.0103;FS=0.000;MLEAC=1;MLEAF=0.500;MQ=60.00;QD=28.73;SOR=0.693
+chr10  93581  .  G  T  64.64    .  AC=1;AF=0.500;AN=2;BaseQRankSum=3.246;DP=85;ExcessHet=3.0103;FS=13.366;MLEAC=1;MLEAF=0.500;MQ=60.00;MQRankSum=0.000;QD=0.76;ReadPosRankSum=2.051;SOR=3.549
+chr10  93603  .  C  T  1169.64  .  AC=1;AF=0.500;AN=2;BaseQRankSum=-1.611;DP=104;ExcessHet=3.0103;FS=6.880;MLEAC=1;MLEAF=0.500;MQ=60.00;MQRankSum=0.000;QD=12.71;ReadPosRankSum=-2.915;SOR=0.290
+chr10  93616  .  C  T  245.64   .  AC=1;AF=0.500;AN=2;BaseQRankSum=3.009;DP=108;ExcessHet=3.0103;FS=13.311;MLEAC=1;MLEAF=0.500;MQ=60.00;MQRankSum=0.000;QD=2.27;ReadPosRankSum=-1.581;SOR=2.527
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+
+
+
+
+
+
 
 
