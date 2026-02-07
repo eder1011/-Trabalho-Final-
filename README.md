@@ -1799,8 +1799,9 @@ else:
 
 💾 Variantes de alta prioridade salvas em: variantes_alta_prioridade.csv
 ```
+Collab
 
-
+>https://colab.research.google.com/drive/1a1qVBUkGxZ_Tm9EKP39pxwX5ug3HUk67 
 
 
 
